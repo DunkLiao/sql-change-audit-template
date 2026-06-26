@@ -1,0 +1,44 @@
+# SQLite 設定範例（指向內建 demo.db）
+db:
+  driver: sqlite3
+  dsn: ../tests/fixtures/demo.db
+
+sql_dir: ../templates/sqlite
+report_dir: ../reports
+
+placeholders:
+  BASELINE_TABLE: tmp_baseline
+  SAMPLE_TABLE:   tmp_sample
+  COMPARE_TABLE:  tmp_compare
+  SOURCE_TABLE:   lgd_calc_result
+  OLD_SQL_OR_VIEW: v_lgd_calc_old
+  NEW_SQL_OR_VIEW: v_lgd_calc_new
+  PK_COL_1: cust_id
+  PK_COL_2: ss_seq
+  BIZ_COL_1: industry_group
+  BIZ_COL_2: lgd_value
+  BIZ_COL_3: k_value
+  BIZ_COL_4: ead_amt
+  BIZ_COL_5: rwa_amt
+  BRANCH_COL: case_branch
+  EXCEPTION_FILTER: "substr(industry_type,3,2) IN ('08','09')"
+  BOUNDARY_FILTER:  "ead_amt IN (0, 1, 999999)"
+  NORMAL_FILTER:    "substr(industry_type,3,2) NOT IN ('08','09')"
+  NULL_FILTER:      "industry_type IS NULL"
+  AMT_COL:      ead_amt
+  WEIGHTED_COL: rwa_amt
+  RATIO_COL:    lgd_value
+  GROUP_COL:    industry_group
+  NUMERIC_TOL: "0.01"
+
+tolerances:
+  - metric: CNT
+    max_abs_diff: 0
+  - metric: SUM_AMT
+    max_pct_diff: 0.001
+  - metric: SUM_WEIGHTED
+    max_pct_diff: 0.01
+  - metric: AVG_RATIO
+    max_abs_diff: 0.001
+  - metric: GROUP_CNT
+    max_abs_diff: 0

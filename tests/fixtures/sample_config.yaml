@@ -1,0 +1,17 @@
+db:
+  driver: sqlite3
+  dsn: ":memory:"
+
+sql_dir: ../templates/sqlite
+report_dir: ../reports
+
+placeholders:
+  PK_COL_1: cust_id
+  PK_COL_2: ss_seq
+  BIZ_COL_1: industry_group
+
+tolerances:
+  - metric: CNT
+    max_abs_diff: 0
+  - metric: SUM_AMT
+    max_pct_diff: 0.001

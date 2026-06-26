@@ -1,0 +1,47 @@
+# Oracle 設定範例
+db:
+  driver: oracledb
+  user: YOUR_USER
+  password: ${ENV:DB_PASSWORD}
+  dsn: your-host:1521/ORCLPDB1
+  schema: YOUR_SCHEMA
+
+sql_dir: ../templates
+report_dir: ../reports
+
+placeholders:
+  BASELINE_TABLE: TMP_BASELINE_V20260626
+  SAMPLE_TABLE:   TMP_GOLDEN_SAMPLE
+  COMPARE_TABLE:  TMP_COMPARE
+  SOURCE_TABLE:   LGD_CALC_RESULT
+  OLD_SQL_OR_VIEW: V_LGD_CALC_OLD
+  NEW_SQL_OR_VIEW: V_LGD_CALC_NEW
+  PK_COL_1: CUST_ID
+  PK_COL_2: SS_SEQ
+  BIZ_COL_1: INDUSTRY_GROUP
+  BIZ_COL_2: LGD_VALUE
+  BIZ_COL_3: K_VALUE
+  BIZ_COL_4: EAD_AMT
+  BIZ_COL_5: RWA_AMT
+  BRANCH_COL: CASE_BRANCH
+  EXCEPTION_FILTER: "SUBSTR(INDUSTRY_TYPE, 3, 2) IN ('08','09')"
+  BOUNDARY_FILTER:  "EAD_AMT IN (0, 1, 999999)"
+  NORMAL_FILTER:    "SUBSTR(INDUSTRY_TYPE, 3, 2) NOT IN ('08','09')"
+  NULL_FILTER:      "INDUSTRY_TYPE IS NULL"
+  AMT_COL:      EAD_AMT
+  WEIGHTED_COL: RWA_AMT
+  RATIO_COL:    LGD_VALUE
+  GROUP_COL:    INDUSTRY_GROUP
+  NUMERIC_TOL: "0.01"
+
+tolerances:
+  - metric: CNT
+    max_abs_diff: 0
+  - metric: SUM_AMT
+    max_pct_diff: 0.001
+  - metric: SUM_WEIGHTED
+    max_pct_diff: 0.01
+  - metric: AVG_RATIO
+    max_abs_diff: 0.001
+  - metric: GROUP_CNT
+    max_abs_diff: 0

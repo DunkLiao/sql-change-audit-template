@@ -1,0 +1,6 @@
+-- Oracle: Step 6 Group Diff
+SELECT o.{{GROUP_COL}} OLD_GROUP, n.{{GROUP_COL}} NEW_GROUP, COUNT(*) CHANGED_CNT
+FROM {{BASELINE_TABLE}} o JOIN {{NEW_SQL_OR_VIEW}} n
+  ON o.{{PK_COL_1}}=n.{{PK_COL_1}} AND o.{{PK_COL_2}}=n.{{PK_COL_2}}
+WHERE NVL(o.{{GROUP_COL}},'#') <> NVL(n.{{GROUP_COL}},'#')
+GROUP BY o.{{GROUP_COL}}, n.{{GROUP_COL}};
