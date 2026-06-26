@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Test sql.js</title></head>
+<body>
+<h1>sql.js Test</h1>
+<div id="status">等待...</div>
+<script src="js/vendor/sql-wasm.js"></script>
+<script>
+(async () => {
+  const el = document.getElementById("status");
+  try {
+    el.textContent = "initSqlJs type: " + typeof initSqlJs;
+    if (typeof initSqlJs !== "function") {
+      el.textContent += " | window.initSqlJs: " + typeof window.initSqlJs;
+      return;
+    }
+    const SQL = await initSqlJs({ locateFile: f => "js/vendor/" + f });
+    el.textContent += " | SQL loaded, Database type: " + typeof SQL.Database;
+    const db = new SQL.Database();
+    db.run("CREATE TABLE test (id INTEGER, name TEXT)");
+    db.run("INSERT INTO test VALUES (1, 'hello')");
+    const res = db.exec("SELECT * FROM test");
+    el.textContent += " | Query result: " + JSON.stringify(res[0].values);
+    el.style.color = "green";
+    el.textContent += " | ALL OK!";
+  } catch (e) {
+    el.textContent += " | ERROR: " + e.message;
+    el.style.color = "red";
+  }
+})();
+</script>
+</body>
+</html>

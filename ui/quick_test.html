@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head><meta charset="UTF-8"><title>Test</title></head>
+<body>
+<h1>Quick sql.js Test</h1>
+<button id="test-btn">建立新資料庫（記憶體）</button>
+<pre id="output"></pre>
+
+<script src="js/vendor/sql-wasm.js"></script>
+<script>
+document.getElementById("test-btn").addEventListener("click", async () => {
+  const out = document.getElementById("output");
+  out.textContent = "點擊了！初始化中...";
+  try {
+    const SQL = await initSqlJs({
+      locateFile: function(file) { return "js/vendor/" + file; }
+    });
+    out.textContent += "\nsql.js 載入成功";
+    const db = new SQL.Database();
+    out.textContent += "\n資料庫已建立";
+    db.run("CREATE TABLE t(id INTEGER)");
+    db.run("INSERT INTO t VALUES (1)");
+    const r = db.exec("SELECT * FROM t");
+    out.textContent += "\n查詢結果: " + JSON.stringify(r[0].values);
+  } catch (e) {
+    out.textContent += "\n錯誤: " + e.message;
+  }
+});
+</script>
+</body>
+</html>
