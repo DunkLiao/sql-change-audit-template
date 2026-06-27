@@ -3,77 +3,135 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SQL 變更審計工具</title>
+<title>SQL 變更審計工作台</title>
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-
-<header>
-  <h1>SQL 變更審計</h1>
-  <span class="subtitle">五步驟自動化驗證管線</span>
-</header>
-
-<nav class="tabs">
-  <button data-tab="setup">1. 資料庫設定</button>
-  <button data-tab="sql">2. SQL 輸入</button>
-  <button data-tab="config">3. 參數設定</button>
-  <button data-tab="results">4. 審計結果</button>
-</nav>
-
-<main>
-
-  <!-- ============= TAB 1: SETUP ============= -->
-  <section id="tab-setup" class="tab-content">
-    <div class="card">
-      <h2>執行模式</h2>
-      <div class="radio-group">
-        <label><input type="radio" name="db-mode" value="browser" checked> 瀏覽器內 SQLite（無需後端）</label>
-        <label><input type="radio" name="db-mode" value="remote"> 遠端資料庫（需啟動後端 backend/server.py）</label>
-      </div>
+<div class="app-shell">
+  <aside class="workflow-sidebar" aria-label="審計流程">
+    <div class="brand-block">
+      <p class="eyebrow">SQL Change Audit</p>
+      <h1>SQL 變更審計</h1>
+      <p>驗證 SQL 改寫前後的逐列結果與彙總指標是否一致。</p>
     </div>
 
-    <!-- In-Browser SQLite 區塊 -->
-    <div id="local-db-section">
-      <div class="card">
-        <h2>資料庫</h2>
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-          <span>狀態：<span id="db-status" class="db-status disconnected">未連線</span></span>
-        </div>
+    <nav class="workflow-steps">
+      <button type="button" class="workflow-step" data-step="source">
+        <span class="step-index">1</span>
+        <span>
+          <strong>資料來源</strong>
+          <small>建立或連接審計資料庫</small>
+        </span>
+        <span class="step-state" id="state-source">待處理</span>
+      </button>
+      <button type="button" class="workflow-step" data-step="sql">
+        <span class="step-index">2</span>
+        <span>
+          <strong>SQL 比對</strong>
+          <small>貼上修改前與修改後 SQL</small>
+        </span>
+        <span class="step-state" id="state-sql">待處理</span>
+      </button>
+      <button type="button" class="workflow-step" data-step="config">
+        <span class="step-index">3</span>
+        <span>
+          <strong>審計設定</strong>
+          <small>設定主鍵、欄位、抽樣與容忍度</small>
+        </span>
+        <span class="step-state" id="state-config">待處理</span>
+      </button>
+      <button type="button" class="workflow-step" data-step="results">
+        <span class="step-index">4</span>
+        <span>
+          <strong>執行結果</strong>
+          <small>查看差異與下載報告</small>
+        </span>
+        <span class="step-state" id="state-results">未執行</span>
+      </button>
+    </nav>
 
-        <div class="form-row">
-          <div class="form-group">
-            <button id="btn-new-db" class="btn btn-primary" onclick="App._onClickNewDb()">建立新資料庫（記憶體）</button>
-            <span style="font-size:12px;color:var(--fg2);margin-left:8px">在瀏覽器記憶體中建立空白 SQLite 資料庫</span>
+    <section class="readiness-card" aria-labelledby="readiness-title">
+      <h2 id="readiness-title">交付檢查</h2>
+      <ul id="readiness-list"></ul>
+    </section>
+  </aside>
+
+  <main class="workspace">
+    <header class="workspace-header">
+      <div>
+        <p class="eyebrow">審計工作台</p>
+        <h2 id="workspace-title">資料來源</h2>
+      </div>
+      <div class="status-pill" id="global-status">尚未就緒</div>
+    </header>
+
+    <section class="step-panel" data-step-panel="source" id="panel-source">
+      <div class="section-heading">
+        <div>
+          <h3>選擇審計資料來源</h3>
+          <p>預設使用瀏覽器內 SQLite，不需要後端。正式 Oracle 或遠端資料庫可切換到進階連線。</p>
+        </div>
+      </div>
+
+      <div class="mode-grid" role="radiogroup" aria-label="資料庫模式">
+        <label class="mode-card">
+          <input type="radio" name="db-mode" value="browser" checked>
+          <span>
+            <strong>瀏覽器內 SQLite</strong>
+            <small>適合 demo、SQLite 檔案與本機快速驗證。</small>
+          </span>
+        </label>
+        <label class="mode-card">
+          <input type="radio" name="db-mode" value="remote">
+          <span>
+            <strong>遠端資料庫</strong>
+            <small>透過 backend/server.py 連接 Oracle、SQLite 或 ODBC。</small>
+          </span>
+        </label>
+      </div>
+
+      <div id="local-db-section" class="panel-stack">
+        <section class="panel">
+          <div class="panel-title-row">
+            <div>
+              <h3>SQLite 資料庫</h3>
+              <p>建立記憶體資料庫，或載入既有 .db / .sqlite 檔案。</p>
+            </div>
+            <span id="db-status" class="db-status disconnected">未連線</span>
           </div>
-        </div>
 
-        <div class="file-upload" style="margin-bottom:8px">
-          <input type="file" id="db-file-input" accept=".db,.sqlite,.sqlite3">
-          <button id="btn-load-db" class="btn btn-secondary">載入 .db 檔案</button>
-          <span style="font-size:12px;color:var(--fg2);margin-left:8px">上傳現有的 SQLite 資料庫</span>
-        </div>
+          <div class="toolbar">
+            <button id="btn-new-db" class="btn btn-primary" type="button">建立新資料庫</button>
+            <label class="file-picker">
+              <input type="file" id="db-file-input" accept=".db,.sqlite,.sqlite3">
+              <span>選擇 .db 檔案</span>
+            </label>
+            <button id="btn-load-db" class="btn btn-secondary" type="button">載入檔案</button>
+            <button id="btn-download-db" class="btn btn-secondary" type="button">下載資料庫</button>
+          </div>
+        </section>
 
-        <button id="btn-download-db" class="btn btn-secondary" style="margin-bottom:16px">下載資料庫 (.db)</button>
+        <section class="panel">
+          <div class="panel-title-row">
+            <div>
+              <h3>資料結構與測試資料</h3>
+              <p>輸入建立資料表與測試資料的 SQL，作為後續新舊查詢的比對基礎。</p>
+            </div>
+            <button id="btn-load-sql" class="btn btn-primary" type="button">執行結構 SQL</button>
+          </div>
+          <textarea id="setup-sql" class="code code-large" placeholder="CREATE TABLE lgd_calc_result (&#10;  cust_id INTEGER,&#10;  ss_seq INTEGER,&#10;  industry_group TEXT,&#10;  lgd_value REAL,&#10;  k_value REAL,&#10;  ead_amt REAL,&#10;  rwa_amt REAL,&#10;  industry_type TEXT,&#10;  case_branch TEXT&#10;);&#10;&#10;INSERT INTO lgd_calc_result VALUES&#10;(1, 1, 'GroupA', 0.45, 0.12, 100000, 50000, 'XX08', 'BR01'),&#10;(2, 1, 'GroupB', 0.32, 0.08, 200000, 80000, 'XX09', 'BR02'),&#10;(3, 1, 'GroupA', 0.51, 0.15, 150000, 75000, 'YY01', 'BR01');"></textarea>
+        </section>
       </div>
 
-      <div class="card">
-        <h2>資料結構 / 測試資料（SQL）</h2>
-        <p style="font-size:12px;color:var(--fg2);margin-bottom:8px">
-          建立資料表並插入測試資料。這些將作為修改前/後 SQL 查詢的比對基礎。
-        </p>
-        <textarea id="setup-sql" class="code" placeholder="CREATE TABLE lgd_calc_result (&#10;  cust_id INTEGER,&#10;  ss_seq INTEGER,&#10;  industry_group TEXT,&#10;  lgd_value REAL,&#10;  k_value REAL,&#10;  ead_amt REAL,&#10;  rwa_amt REAL,&#10;  industry_type TEXT,&#10;  case_branch TEXT&#10;);&#10;&#10;INSERT INTO lgd_calc_result VALUES&#10;(1, 1, 'GroupA', 0.45, 0.12, 100000, 50000, 'XX08', 'BR01'),&#10;(2, 1, 'GroupB', 0.32, 0.08, 200000, 80000, 'XX09', 'BR02'),&#10;(3, 1, 'GroupA', 0.51, 0.15, 150000, 75000, 'YY01', 'BR01');"></textarea>
-        <button id="btn-load-sql" class="btn btn-primary" style="margin-top:8px">執行結構 SQL</button>
-      </div>
-    </div>
-
-    <!-- 遠端資料庫區塊（預設隱藏） -->
-    <div id="remote-db-section" style="display:none">
-      <div class="card">
-        <h2>遠端資料庫連線</h2>
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-          <span>狀態：<span id="remote-db-status" class="db-status disconnected">未連線</span></span>
+      <div id="remote-db-section" class="panel" style="display:none">
+        <div class="panel-title-row">
+          <div>
+            <h3>遠端資料庫連線</h3>
+            <p>啟動 FastAPI 後端後，填入連線資訊並測試連線。</p>
+          </div>
+          <span id="remote-db-status" class="db-status disconnected">未連線</span>
         </div>
-        <div class="form-row">
+        <div class="form-grid">
           <div class="form-group"><label>後端 API 網址</label><input id="remote-api-url" value="http://localhost:8000"></div>
           <div class="form-group"><label>驅動程式</label>
             <select id="remote-driver">
@@ -83,94 +141,112 @@
               <option value="pyodbc">SQL Server / ODBC</option>
             </select>
           </div>
-        </div>
-        <div class="form-row">
-          <div class="form-group"><label>DSN / 連線字串</label><input id="remote-dsn" placeholder="host:1521/SID 或 C:\path\to\file.db 或 :memory:"></div>
+          <div class="form-group wide"><label>DSN / 連線字串</label><input id="remote-dsn" placeholder="host:1521/SID 或 C:\path\to\file.db 或 :memory:"></div>
           <div class="form-group"><label>使用者名稱</label><input id="remote-user" placeholder="scott"></div>
           <div class="form-group"><label>密碼</label><input id="remote-password" type="password" placeholder="tiger"></div>
         </div>
-        <button id="btn-test-connection" class="btn btn-secondary">測試連線</button>
-        <span id="remote-test-result" style="margin-left:8px;font-size:12px"></span>
+        <div class="toolbar">
+          <button id="btn-test-connection" class="btn btn-secondary" type="button">測試連線</button>
+          <span id="remote-test-result" class="inline-status"></span>
+        </div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- ============= TAB 2: SQL INPUT ============= -->
-  <section id="tab-sql" class="tab-content">
-    <div class="card">
-      <h2>修改前 SQL（舊版）<span id="old-sql-mode" style="font-size:11px;color:var(--fg2)"></span></h2>
-      <textarea id="old-sql" class="code" placeholder="SELECT cust_id, ss_seq, industry_group, lgd_value, k_value, ead_amt, rwa_amt, case_branch&#10;FROM lgd_calc_result&#10;WHERE industry_group = 'GroupA'"></textarea>
-    </div>
-
-    <div class="card">
-      <h2>修改後 SQL（新版）<span id="new-sql-mode" style="font-size:11px;color:var(--fg2)"></span></h2>
-      <textarea id="new-sql" class="code" placeholder="SELECT cust_id, ss_seq,&#10;  CASE WHEN industry_group = 'GroupA' THEN 'GroupA_New' ELSE industry_group END AS industry_group,&#10;  lgd_value * 1.1 AS lgd_value, k_value, ead_amt, rwa_amt, case_branch&#10;FROM lgd_calc_result"></textarea>
-    </div>
-
-    <div class="button-bar">
-      <button id="btn-detect-sql" class="btn btn-secondary">偵測 SQL 類型</button>
-      <button id="btn-apply-sql" class="btn btn-primary">套用 View 至資料庫</button>
-    </div>
-
-    <div class="card" style="background:#eff6ff;border-color:var(--accent)">
-      <p style="font-size:12px;color:var(--fg)">
-        <strong>使用說明：</strong>將舊版與新版的 <em>SELECT</em> 查詢貼上，工具會自動包裝為 <code>v_audit_old</code> 與 <code>v_audit_new</code> 兩個 View，然後逐列比對並進行彙總指標檢查。
-        您也可以直接貼上 <em>CREATE VIEW</em> 語句，或輸入已存在的資料表/View 名稱。
-      </p>
-    </div>
-  </section>
-
-  <!-- ============= TAB 3: CONFIG ============= -->
-  <section id="tab-config" class="tab-content">
-    <div id="config-sections">
-      <!-- 動態渲染 -->
-    </div>
-    <div class="button-bar">
-      <button id="btn-save-config" class="btn btn-secondary">儲存設定</button>
-      <input type="file" id="yaml-file-input" accept=".yaml,.yml" style="display:none">
-      <button id="btn-import-yaml" class="btn btn-secondary">匯入 YAML</button>
-      <button id="btn-export-yaml" class="btn btn-secondary">匯出 YAML</button>
-      <button id="btn-run-pipeline" class="btn btn-primary" style="margin-left:auto">執行審計管線</button>
-    </div>
-  </section>
-
-  <!-- ============= TAB 4: RESULTS ============= -->
-  <section id="tab-results" class="tab-content">
-    <div id="result-summary" class="summary" style="display:none"></div>
-
-    <div class="progress" id="pipeline-progress"></div>
-
-    <div class="card" id="s4-container">
-      <div id="s4-status" style="margin-bottom:8px"></div>
-      <div id="s4-table-container" style="max-height:300px;overflow:auto;display:none">
-        <table class="result-table" id="s4-table"></table>
+    <section class="step-panel" data-step-panel="sql" id="panel-sql">
+      <div class="section-heading">
+        <div>
+          <h3>輸入新舊 SQL</h3>
+          <p>貼上 SELECT 時會自動建立 <code>v_audit_old</code> 與 <code>v_audit_new</code>；也可以輸入既有資料表或 View 名稱。</p>
+        </div>
+        <div class="toolbar compact">
+          <button id="btn-detect-sql" class="btn btn-secondary" type="button">偵測類型</button>
+          <button id="btn-apply-sql" class="btn btn-primary" type="button">套用 View</button>
+        </div>
       </div>
-    </div>
 
-    <div class="card">
-      <div id="s5-status" style="margin-bottom:8px"></div>
-      <div style="max-height:400px;overflow:auto">
-        <table class="result-table" id="s5-table"></table>
+      <div class="sql-grid">
+        <section class="panel">
+          <div class="panel-title-row">
+            <h3>修改前 SQL <span id="old-sql-mode" class="field-hint"></span></h3>
+          </div>
+          <textarea id="old-sql" class="code code-editor" placeholder="SELECT cust_id, ss_seq, industry_group, lgd_value, k_value, ead_amt, rwa_amt, case_branch&#10;FROM lgd_calc_result&#10;WHERE industry_group = 'GroupA'"></textarea>
+        </section>
+        <section class="panel">
+          <div class="panel-title-row">
+            <h3>修改後 SQL <span id="new-sql-mode" class="field-hint"></span></h3>
+          </div>
+          <textarea id="new-sql" class="code code-editor" placeholder="SELECT cust_id, ss_seq,&#10;  CASE WHEN industry_group = 'GroupA' THEN 'GroupA_New' ELSE industry_group END AS industry_group,&#10;  lgd_value * 1.1 AS lgd_value, k_value, ead_amt, rwa_amt, case_branch&#10;FROM lgd_calc_result"></textarea>
+        </section>
       </div>
-    </div>
 
-    <div class="card">
-      <div id="s6-status"></div>
-    </div>
+      <div class="notice">
+        <strong>比對邏輯</strong>
+        <span>系統會先凍結舊版結果，再抽樣雙跑新舊 SQL，最後做逐列差異與彙總容忍度判斷。</span>
+      </div>
+    </section>
 
-    <div class="card">
-      <h2>執行記錄</h2>
-      <div class="log-area" id="log-output"></div>
-    </div>
+    <section class="step-panel" data-step-panel="config" id="panel-config">
+      <div class="section-heading">
+        <div>
+          <h3>審計設定</h3>
+          <p>設定主鍵、業務欄位、抽樣條件與彙總指標。大多數 demo 可使用預設值後直接執行。</p>
+        </div>
+        <div class="toolbar compact">
+          <button id="btn-save-config" class="btn btn-secondary" type="button">儲存設定</button>
+          <input type="file" id="yaml-file-input" accept=".yaml,.yml" style="display:none">
+          <button id="btn-import-yaml" class="btn btn-secondary" type="button">匯入 YAML</button>
+          <button id="btn-export-yaml" class="btn btn-secondary" type="button">匯出 YAML</button>
+          <button id="btn-run-pipeline" class="btn btn-primary" type="button">執行審計</button>
+        </div>
+      </div>
+      <div id="config-sections" class="config-sections"></div>
+    </section>
 
-    <div class="button-bar">
-      <button id="btn-download-md" class="btn btn-secondary" disabled>下載報告 (.md)</button>
-      <button id="btn-download-html" class="btn btn-secondary" disabled>下載報告 (.html)</button>
-      <button id="btn-go-config" class="btn btn-secondary">返回參數設定</button>
-    </div>
-  </section>
+    <section class="step-panel" data-step-panel="results" id="panel-results">
+      <div class="section-heading">
+        <div>
+          <h3>審計結果</h3>
+          <p>先看總結，再檢查逐列差異、彙總指標與分組變更。</p>
+        </div>
+        <div class="toolbar compact">
+          <button id="btn-download-md" class="btn btn-secondary" type="button" disabled>下載 Markdown</button>
+          <button id="btn-download-html" class="btn btn-secondary" type="button" disabled>下載 HTML</button>
+          <button id="btn-go-config" class="btn btn-secondary" type="button">回到設定</button>
+        </div>
+      </div>
 
-</main>
+      <div id="result-summary" class="summary" style="display:none"></div>
+      <div class="progress" id="pipeline-progress"></div>
+
+      <div class="result-grid">
+        <section class="panel">
+          <h3>逐列差異</h3>
+          <div id="s4-status" class="result-status"></div>
+          <div id="s4-table-container" class="table-wrap" style="display:none">
+            <table class="result-table" id="s4-table"></table>
+          </div>
+        </section>
+        <section class="panel">
+          <h3>彙總指標</h3>
+          <div id="s5-status" class="result-status"></div>
+          <div class="table-wrap">
+            <table class="result-table" id="s5-table"></table>
+          </div>
+        </section>
+        <section class="panel">
+          <h3>分組變更</h3>
+          <div id="s6-status" class="result-status"></div>
+        </section>
+        <section class="panel">
+          <details>
+            <summary>執行記錄</summary>
+            <div class="log-area" id="log-output"></div>
+          </details>
+        </section>
+      </div>
+    </section>
+  </main>
+</div>
 
 <script src="js/vendor/sql-wasm.js"></script>
 <script src="js/templates.js"></script>

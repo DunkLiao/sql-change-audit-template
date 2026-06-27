@@ -38,9 +38,12 @@ def test_end_to_end_sqlite_pass(tmp_path):
     test_db = tmp_path / "demo.db"
     shutil.copy(DEMO_DB, test_db)
 
-    cfg_text = CONFIG.read_text()
+    cfg_text = CONFIG.read_text(encoding="utf-8")
     new_cfg = tmp_path / "cfg.yaml"
-    new_cfg.write_text(cfg_text.replace("../tests/fixtures/demo.db", str(test_db)))
+    new_cfg.write_text(
+        cfg_text.replace("../tests/fixtures/demo.db", str(test_db)),
+        encoding="utf-8",
+    )
 
     _prepare_baseline_and_sample(test_db)
 
