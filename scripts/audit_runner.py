@@ -190,6 +190,26 @@ def run_step5(conn, sql_dir: Path, placeholders, tolerances, logger, dry_run, ve
     return overall, results
 
 
+def run_setup_steps(conn, sql_dir: Path, placeholders, logger, dry_run, verbose):
+    logger.info("Step 1-3: Prepare baseline, sample, and compare tables")
+    steps = ["01_baseline_snapshot.sql", "02_golden_sample.sql", "03_dual_run.sql"]
+    for step in steps:
+        sql = render_sql(str(sql_dir / step), placeholders)
+        if verbose:
+            logger.debug(f"Rendered {step}:\n{sql}")
+        if dry_run:
+            logger.warning(f"[DRY-RUN] skip {step}")
+            continue
+        if hasattr(conn, "executescript"):
+            conn.executescript(sql)
+        else:
+            cur = conn.cursor()
+            for stmt in [s.strip() for s in sql.split(";") if s.strip()]:
+                cur.execute(stmt)
+            conn.commit()
+            cur.close()
+
+
 def _judge(metric, diff, diff_pct, tol):
     if tol is None:
         return "SKIP", "未設定容忍度"
@@ -239,6 +259,24 @@ def print_summary(step4, step5, logger):
     logger.info("=" * 60)
 
 
+def resolve_config_path(config_arg: str, script_dir: Path) -> Path:
+    candidate = Path(config_arg)
+    if candidate.is_absolute():
+        return candidate
+    cwd_candidate = (Path.cwd() / candidate).resolve()
+    if cwd_candidate.exists():
+        return cwd_candidate
+    return (script_dir / candidate).resolve()
+
+
+def resolve_sqlite_dsn(cfg: AuditConfig, config_path: Path):
+    if cfg.db.driver != "sqlite3" or not cfg.db.dsn or cfg.db.dsn == ":memory:":
+        return
+    dsn_path = Path(cfg.db.dsn)
+    if not dsn_path.is_absolute():
+        cfg.db.dsn = str((config_path.parent / dsn_path).resolve())
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", "-c", default="../config/audit_config.yaml")
@@ -248,10 +286,11 @@ def main():
 
     logger = setup_logger(args.verbose)
     script_dir = Path(__file__).resolve().parent
-    cp = (script_dir / args.config).resolve() if not os.path.isabs(args.config) else Path(args.config)
+    cp = resolve_config_path(args.config, script_dir)
     if not cp.exists():
         logger.error(f"Config not found: {cp}"); sys.exit(2)
     cfg = load_config(str(cp))
+    resolve_sqlite_dsn(cfg, cp)
     sql_dir = (script_dir / cfg.sql_dir).resolve()
     report_dir = (script_dir / cfg.report_dir).resolve()
     logger.info(f"Config: {cp}")
@@ -269,6 +308,7 @@ def main():
         logger.warning("DRY-RUN mode")
 
     try:
+        run_setup_steps(conn, sql_dir, cfg.placeholders, logger, args.dry_run, args.verbose)
         step4 = run_step4(conn, sql_dir, cfg.placeholders, logger, args.dry_run, args.verbose)
         step5 = run_step5(conn, sql_dir, cfg.placeholders, cfg.tolerances, logger, args.dry_run, args.verbose)
     finally:

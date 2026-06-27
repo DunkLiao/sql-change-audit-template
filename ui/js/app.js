@@ -227,6 +227,7 @@ const App = {
       var dsn = document.getElementById("remote-dsn").value.trim();
       var user = document.getElementById("remote-user").value.trim();
       var pass = document.getElementById("remote-password").value;
+      var schema = document.getElementById("remote-schema").value.trim();
       var resEl = document.getElementById("remote-test-result");
       if (!url) {
         App.notify("請輸入後端 API 網址", "error");
@@ -238,7 +239,7 @@ const App = {
         var resp = await fetch(url + "/api/test-connection", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ driver: driver, dsn: dsn, user: user, password: pass })
+          body: JSON.stringify({ driver: driver, dsn: dsn, user: user, password: pass, db_schema: schema })
         });
         if (resp.ok) {
           App.remoteConnected = true;
@@ -653,7 +654,6 @@ const App = {
     }
     this.config.tables.oldView = this._viewForSQL(this.oldSQL) || "v_audit_old";
     this.config.tables.newView = this._viewForSQL(this.newSQL) || "v_audit_new";
-    if (this.dbMode === "remote") return this.runAuditRemote();
 
     var missing = validateConfig(this.config);
     if (missing.length > 0) {
@@ -661,6 +661,7 @@ const App = {
       this.setStep("config");
       return;
     }
+    if (this.dbMode === "remote") return this.runAuditRemote();
     if (!this.db) {
       this.notify("請先初始化資料庫", "error");
       this.setStep("source");
@@ -703,9 +704,10 @@ const App = {
     var dsn = document.getElementById("remote-dsn").value.trim();
     var user = document.getElementById("remote-user").value.trim();
     var pass = document.getElementById("remote-password").value;
+    var schema = document.getElementById("remote-schema").value.trim();
     var sqlDir = (driver === "oracledb" || driver === "cx_Oracle") ? "../templates" : "../templates/sqlite";
     var body = {
-      db: { driver: driver, user: user, password: pass, dsn: dsn },
+      db: { driver: driver, user: user, password: pass, dsn: dsn, db_schema: schema },
       config: this.config,
       before_sql: this.oldSQL,
       after_sql: this.newSQL,
@@ -724,7 +726,7 @@ const App = {
       }
       var data = await resp.json();
       this.runResult = { overall: data.overall, steps: [], step4: data.step4, step5: data.step5, step6: data.step6 };
-      stepNames.forEach(function(n) { App.appendProgressStep(n, true); });
+      this.appendRemoteProgress(stepNames, data);
       this.renderResults(this.runResult);
       this.notify("審計完成：" + (this.runResult.overall ? "通過" : "未通過"), this.runResult.overall ? "success" : "error");
     } catch (e) {
@@ -740,6 +742,19 @@ const App = {
     span.className = "step " + (ok ? "done" : "error");
     span.textContent = name;
     document.getElementById("pipeline-progress").appendChild(span);
+  },
+
+  appendRemoteProgress(stepNames, data) {
+    var earlySteps = stepNames.slice(0, 3);
+    earlySteps.forEach(function(n) { App.appendProgressStep(n, true); });
+    [
+      { name: stepNames[3], result: data.step4 },
+      { name: stepNames[4], result: data.step5 },
+      { name: stepNames[5], result: data.step6 }
+    ].forEach(function(item) {
+      var ok = item.result && item.result.pass !== false;
+      App.appendProgressStep(item.name, ok);
+    });
   },
 
   bindResults() {

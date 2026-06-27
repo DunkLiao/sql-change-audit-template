@@ -33,6 +33,9 @@ logger = logging.getLogger("audit-api")
 app = FastAPI(title="SQL 變更審計 API", version="2.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 UI_DIR = Path(__file__).resolve().parent.parent / "ui"
+if (UI_DIR / "index.html").exists():
+    app.mount("/js", StaticFiles(directory=str(UI_DIR / "js")), name="js")
+    app.mount("/css", StaticFiles(directory=str(UI_DIR / "css")), name="css")
 
 
 class DBConnectionRequest(BaseModel):
@@ -156,6 +159,37 @@ def _build_step5(config):
     return f"WITH old_stats AS (SELECT {', '.join(old_exprs)} FROM {t['baselineTable']}), new_stats AS (SELECT {', '.join(new_exprs)} FROM {t['newView']}) {' UNION ALL '.join(unions)}"
 
 
+def _build_step6(config):
+    t = config["tables"]
+    pk = [c for c in config.get("pkColumns", []) if c]
+    group_col = config.get("groupColumn", "")
+    if not group_col or not pk:
+        return None
+
+    join_on = " AND ".join(f"o.{c}=n.{c}" for c in pk)
+    return (
+        f"SELECT o.{group_col} AS OLD_GROUP, n.{group_col} AS NEW_GROUP, "
+        f"COUNT(*) AS CHANGED_CNT FROM {t['baselineTable']} o "
+        f"JOIN {t['newView']} n ON {join_on} "
+        f"WHERE COALESCE(o.{group_col},'#') <> COALESCE(n.{group_col},'#') "
+        f"GROUP BY o.{group_col}, n.{group_col}"
+    )
+
+
+def _validate_audit_config(config: dict) -> list[str]:
+    missing = []
+    tables = config.get("tables") or {}
+    if not tables.get("sourceTable"):
+        missing.append("來源資料表")
+    if not [c for c in config.get("pkColumns", []) if c]:
+        missing.append("主鍵欄位（至少一個）")
+    if not [c for c in config.get("bizColumns", []) if c.get("name")]:
+        missing.append("業務欄位（至少一個）")
+    if not [m for m in config.get("aggregateMetrics", []) if m.get("metric") and m.get("expression")]:
+        missing.append("彙總指標（至少一個）")
+    return missing
+
+
 # ---- DB helpers ----
 def _db_execute(conn, sql: str, ignore_missing: bool = False):
     cur = conn.cursor()
@@ -201,6 +235,13 @@ def run_audit(req: AuditRunRequest):
     config = req.config
     driver = req.db.driver
     tables = config.get("tables", {})
+
+    if driver != "sqlite3":
+        raise HTTPException(status_code=400, detail="遠端動態 audit 目前僅支援 sqlite3；Oracle/ODBC 請使用 CLI 模板流程")
+
+    missing = _validate_audit_config(config)
+    if missing:
+        raise HTTPException(status_code=400, detail="缺少必要設定：" + ", ".join(missing))
 
     # 從使用者 SQL 推導 View 名稱
     if req.before_sql:
@@ -307,13 +348,25 @@ def run_audit(req: AuditRunRequest):
                 s5_pass = False
             judged.append({"metric": metric, "oldVal": rec.get("OLD_VAL"), "newVal": rec.get("NEW_VAL"), "diff": diff, "diffPct": diff_pct, "status": status, "reason": reason})
 
-        overall = s4_pass and s5_pass
+        # Step 6
+        sql6 = _build_step6(config)
+        if sql6:
+            cur = conn.cursor()
+            cur.execute(sql6)
+            s6_cols = [d[0] for d in (cur.description or [])]
+            s6_rows = cur.fetchall()
+            cur.close()
+            step6 = {"pass": len(s6_rows) == 0, "diffCount": len(s6_rows), "columns": s6_cols, "rows": [list(r) for r in s6_rows[:50]]}
+        else:
+            step6 = {"pass": True, "skipped": True, "diffCount": 0, "columns": [], "rows": [], "message": "未設定分組欄位，略過分組差異檢查"}
+
+        overall = s4_pass and s5_pass and step6["pass"]
 
         return {
             "overall": overall,
             "step4": {"pass": s4_pass, "diffCount": len(s4_rows), "columns": s4_cols, "rows": [list(r) for r in s4_rows[:50]]},
             "step5": {"pass": s5_pass, "judged": judged},
-            "step6": {"pass": True, "diffCount": 0}
+            "step6": step6
         }
     except Exception as e:
         logger.error(f"審計錯誤：{e}")
@@ -336,8 +389,6 @@ def main():
     p.add_argument("--no-ui", action="store_true")
     args = p.parse_args()
     if not args.no_ui and (UI_DIR / "index.html").exists():
-        app.mount("/js", StaticFiles(directory=str(UI_DIR / "js")), name="js")
-        app.mount("/css", StaticFiles(directory=str(UI_DIR / "css")), name="css")
         print(f"UI: http://localhost:{args.port}")
     print(f"API: http://localhost:{args.port}")
     uvicorn.run(app, host="0.0.0.0", port=args.port, log_level="info")
